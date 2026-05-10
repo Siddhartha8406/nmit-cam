@@ -3,59 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D3S Remote Camera</title>
+    <title>D3S Surveillance Control</title>
     <style>
-        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; }
-        video { width: 90%; border: 2px solid #0f0; border-radius: 10px; margin-top: 20px; }
-        #status { font-size: 1.2em; margin: 20px; }
-        .btn { padding: 15px 30px; font-size: 1em; background: #0f0; color: #000; border: none; cursor: pointer; border-radius: 5px; }
+        body { 
+            background: #0a0a0a; 
+            color: #00ff41; 
+            font-family: 'Courier New', monospace; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .container {
+            border: 2px solid #00ff41;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+        }
+        h1 { font-size: 1.5em; margin-bottom: 30px; letter-spacing: 2px; }
+        #status { 
+            margin: 20px; 
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            min-width: 250px;
+        }
+        .btn { 
+            padding: 20px 40px; 
+            font-size: 1.2em; 
+            font-weight: bold;
+            background: #00ff41; 
+            color: #000; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 5px;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+        .btn:hover { background: #008f11; box-shadow: 0 0 15px #00ff41; }
+        .btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
-    <h1>SYSTEM: Synapse ACTIVE</h1>
-    <video id="player" autoplay playsinline></video>
-    <canvas id="canvas" width="1280" height="720" style="display:none;"></canvas>
-    <p id="status">INITIATING CAMERA...</p>
-    <button class="btn" onclick="captureAndSend()">MANUAL OVERRIDE (CAPTURE)</button>
+
+    <div class="container">
+        <h1>D3S SYSTEM ACTIVE</h1>
+        <div id="status">STATUS: STANDBY</div>
+        <button class="btn" onclick="sendSignal()">Object Picked</button>
+    </div>
 
     <script>
-        const player = document.getElementById('player');
-        const canvas = document.getElementById('canvas');
-        const status = document.getElementById('status');
+        // Update this URL with your n8n Production Webhook URL
+        const N8N_URL = 'https://n8n-service-hnch.onrender.com/webhook/trigger-photo';
 
-        // n8n Configuration
-        const N8N_WEBHOOK_URL = 'https://n8n-service-hnch.onrender.com/webhook/trigger-photo';
+        function sendSignal() {
+            const statusBox = document.getElementById('status');
+            statusBox.innerText = "SENDING SIGNAL...";
+            statusBox.style.color = "#ffff00";
 
-        // Start Camera Stream
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then((stream) => {
-                player.srcObject = stream;
-                status.innerText = "LISTENING FOR TRIGGER...";
+            fetch(N8N_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ event: "object_picked" })
+            })
+            .then(response => {
+                if (response.ok) {
+                    statusBox.innerText = "SUCCESS: LOGGED TO TELEGRAM";
+                    statusBox.style.color = "#00ff41";
+                } else {
+                    statusBox.innerText = "ERROR: SERVER REJECTED";
+                    statusBox.style.color = "#ff0000";
+                }
+                // Reset status after 3 seconds
+                setTimeout(() => {
+                    statusBox.innerText = "STATUS: STANDBY";
+                    statusBox.style.color = "#00ff41";
+                }, 3000);
+            })
+            .catch(err => {
+                statusBox.innerText = "CONNECTION FAILED";
+                statusBox.style.color = "#ff0000";
+                console.error('Fetch error:', err);
             });
-
-        // Function to take photo and send to n8n
-        function captureAndSend() {
-            status.innerText = "CAPTURING...";
-            const context = canvas.getContext('2d');
-            context.drawImage(player, 0, 0, canvas.width, canvas.height);
-
-            canvas.toBlob((blob) => {
-                const formData = new FormData();
-                formData.append('data', blob, 'surveillance.jpg');
-
-                fetch(N8N_WEBHOOK_URL, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    status.innerText = "SIGNAL SENT TO TELEGRAM";
-                    setTimeout(() => status.innerText = "LISTENING FOR TRIGGER...", 3000);
-                })
-                .catch(err => {
-                    status.innerText = "ERROR: " + err;
-                    console.error(err);
-                });
-            }, 'image/jpeg', 0.8);
         }
     </script>
 </body>
