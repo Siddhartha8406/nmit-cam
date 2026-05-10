@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3S Remote Camera</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; }
+        video { width: 90%; border: 2px solid #0f0; border-radius: 10px; margin-top: 20px; }
+        #status { font-size: 1.2em; margin: 20px; }
+        .btn { padding: 15px 30px; font-size: 1em; background: #0f0; color: #000; border: none; cursor: pointer; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>SYSTEM: D3S ACTIVE</h1>
+    <video id="player" autoplay playsinline></video>
+    <canvas id="canvas" width="1280" height="720" style="display:none;"></canvas>
+    <p id="status">INITIATING CAMERA...</p>
+    <button class="btn" onclick="captureAndSend()">MANUAL OVERRIDE (CAPTURE)</button>
+
+    <script>
+        const player = document.getElementById('player');
+        const canvas = document.getElementById('canvas');
+        const status = document.getElementById('status');
+
+        // n8n Configuration
+        const N8N_WEBHOOK_URL = 'https://n8n-service-hnch.onrender.com/setup/webhook/trigger-photo';
+
+        // Start Camera Stream
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then((stream) => {
+                player.srcObject = stream;
+                status.innerText = "LISTENING FOR TRIGGER...";
+            });
+
+        // Function to take photo and send to n8n
+        function captureAndSend() {
+            status.innerText = "CAPTURING...";
+            const context = canvas.getContext('2d');
+            context.drawImage(player, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob((blob) => {
+                const formData = new FormData();
+                formData.append('data', blob, 'surveillance.jpg');
+
+                fetch(N8N_WEBHOOK_URL, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    status.innerText = "SIGNAL SENT TO TELEGRAM";
+                    setTimeout(() => status.innerText = "LISTENING FOR TRIGGER...", 3000);
+                })
+                .catch(err => {
+                    status.innerText = "ERROR: " + err;
+                    console.error(err);
+                });
+            }, 'image/jpeg', 0.8);
+        }
+    </script>
+</body>
+</html>
